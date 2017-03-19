@@ -1,11 +1,10 @@
 package main
 
-import "time"
-import "gopkg.in/appleboy/gin-jwt.v2"
-import "gopkg.in/gin-contrib/cors.v1"
-import "gopkg.in/gin-gonic/gin.v1"
-
 import (
+  "time"
+  "gopkg.in/appleboy/gin-jwt.v2"
+  "gopkg.in/gin-contrib/cors.v1"
+  "gopkg.in/gin-gonic/gin.v1"
   "github.com/jinzhu/gorm"
   _ "github.com/go-sql-driver/mysql"
   "github.com/valentijnnieman/song_catalogue/models"
