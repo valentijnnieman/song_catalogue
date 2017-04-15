@@ -12,5 +12,4 @@ type Version struct {
   Notes string `json:"notes"`
   Lyrics string `json:"lyrics"`
   SongID int `json:"song_id"`
-  Instruments []Instrument `json:"instruments" gorm:"ForeignKey:VersionID"`
 }

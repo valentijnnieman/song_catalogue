@@ -13,7 +13,6 @@ import (
 func main() {
   //var song Song
   //var versions []Version
-  //var instruments []Instrument
 
   db, err := gorm.Open("mysql", "root@/song_catalogue")
   if err != nil {
@@ -41,14 +40,15 @@ func main() {
       Timeout:    time.Hour,
       MaxRefresh: time.Hour,
       Authenticator: func(userId string, password string, c *gin.Context) (string, bool) {
-          if (userId == "admin" && password == "admin") || (userId == "test" && password == "test") {
-              return userId, true
-          }
-
-          return userId, false
+        var user models.User
+        db.Where("name = ?", userId).First(&user)
+        if (user.Password == password) {
+          return userId, true
+        }
+        return userId, false
       },
       Authorizator: func(userId string, c *gin.Context) bool {
-          if userId == "admin" {
+          if userId == "Hans" {
               return true
           }
 
@@ -96,18 +96,18 @@ func main() {
         "test": "yay",
       })
     })
-    auth.GET("/user/:id", func(c *gin.Context) {
-      var user models.User
-      db.First(&user)
-      db.Model(&user).Related(&user.Songs, "Songs")
+    auth.GET("/artist/:id", func(c *gin.Context) {
+      var artist models.Artist
+      db.First(&artist)
+      db.Model(&artist).Related(&artist.Songs, "Songs")
       var get_versions []models.Song
-      for _, song := range user.Songs {
+      for _, song := range artist.Songs {
         db.Model(&song).Related(&song.Versions, "Versions")
         get_versions = append(get_versions, song)
       }
-      user.Songs = get_versions
+      artist.Songs = get_versions
       c.JSON(200, gin.H{
-        "user": user,
+        "artist": artist,
       })
     })
   }

@@ -8,6 +8,6 @@ import (
 type Song struct {
   gorm.Model
   Title string `json:"title"`
-  UserID int `json:"user_id"`
+  ArtistID int `json:"artist_id"`
   Versions []Version `json:"versions" gorm:"ForeignKey:SongID"`
 }
