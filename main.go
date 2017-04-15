@@ -1,12 +1,13 @@
 package main
 
 import (
+  "fmt"
   "time"
   "gopkg.in/appleboy/gin-jwt.v2"
   "gopkg.in/gin-contrib/cors.v1"
   "gopkg.in/gin-gonic/gin.v1"
   "github.com/jinzhu/gorm"
-  _ "github.com/go-sql-driver/mysql"
+  _ "github.com/jinzhu/gorm/dialects/postgres"
   "github.com/valentijnnieman/song_catalogue/models"
 )
 
@@ -14,10 +15,8 @@ func main() {
   //var song Song
   //var versions []Version
 
-  db, err := gorm.Open("mysql", "root@/song_catalogue")
-  if err != nil {
-    panic("failed to connect database")
-  }
+  db, err := gorm.Open("postgres", "host=localhost user=vaal dbname=song_catalogue sslmode=disable password=testing")
+  fmt.Printf("%s", err)
   defer db.Close()
 
   r := gin.Default()
@@ -72,6 +71,11 @@ func main() {
       // TokenLookup: "cookie:token",
   }
 
+  r.GET("/ping", func(c *gin.Context) {
+    c.JSON(200, gin.H{
+      "ping": "success!",
+    })
+  })
   r.POST("/login", authMiddleware.LoginHandler)
 
   auth := r.Group("/auth")
