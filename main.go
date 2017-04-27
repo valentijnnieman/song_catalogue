@@ -34,7 +34,7 @@ func main() {
 
   // the jwt middleware
   authMiddleware := &jwt.GinJWTMiddleware{
-      Realm:      "test zone",
+      Realm:      "song_catalogue",
       Key:        []byte("secret key"),
       Timeout:    time.Hour,
       MaxRefresh: time.Hour,
@@ -47,11 +47,12 @@ func main() {
         return userId, false
       },
       Authorizator: func(userId string, c *gin.Context) bool {
-          if userId == "Hans" {
-              return true
-          }
+        return true
+          //if userId == "Hans" {
+              //return true
+          //}
 
-          return false
+          //return false
       },
       Unauthorized: func(c *gin.Context, code int, message string) {
           c.JSON(code, gin.H{
@@ -70,12 +71,28 @@ func main() {
       // TokenLookup: "query:token",
       // TokenLookup: "cookie:token",
   }
+  // USED FOR TESTING
+  r.GET("/artist/:id", func(c *gin.Context) {
+    var artist models.Artist
+    db.First(&artist)
+    db.Model(&artist).Related(&artist.Songs, "Songs")
+    var get_versions []models.Song
+    for _, song := range artist.Songs {
+      db.Model(&song).Related(&song.Versions, "Versions")
+      get_versions = append(get_versions, song)
+    }
+    artist.Songs = get_versions
+    c.JSON(200, gin.H{
+      "artist": artist,
+    })
+  })
 
   r.GET("/ping", func(c *gin.Context) {
     c.JSON(200, gin.H{
       "ping": "success!",
     })
   })
+
   r.POST("/login", authMiddleware.LoginHandler)
 
   auth := r.Group("/auth")
