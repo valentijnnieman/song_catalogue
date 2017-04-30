@@ -15,6 +15,8 @@ func main() {
   //var song Song
   //var versions []Version
 
+  fmt.Printf("DATABASE_URL IS: ")
+  fmt.Printf(os.Getenv("DATABASE_URL"))
   db, err := gorm.Open("postgres", os.Getenv("DATABASE_URL"))
   fmt.Printf("%s", err)
   defer db.Close()
