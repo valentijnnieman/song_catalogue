@@ -8,6 +8,7 @@ import (
   "github.com/gin-gonic/gin"
   "gopkg.in/gin-contrib/cors.v1"
   "github.com/jinzhu/gorm"
+  _"github.com/jinzhu/gorm/dialects/postgres"
   "github.com/valentijnnieman/song_catalogue/models"
 )
 
