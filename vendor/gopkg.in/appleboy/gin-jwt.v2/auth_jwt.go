@@ -6,15 +6,15 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gin-gonic/gin"
 	"gopkg.in/dgrijalva/jwt-go.v3"
-	"gopkg.in/gin-gonic/gin.v1"
 )
 
 // GinJWTMiddleware provides a Json-Web-Token authentication implementation. On failure, a 401 HTTP response
 // is returned. On success, the wrapped middleware is called, and the userID is made available as
 // c.Get("userID").(string).
 // Users can get a token by posting a json request to LoginHandler. The token then needs to be passed in
-// the Authentication header. Example: Authorization:Bearer XXX_TOKEN_XXX#!/usr/bin/env
+// the Authentication header. Example: Authorization:Bearer XXX_TOKEN_XXX
 type GinJWTMiddleware struct {
 	// Realm name to display to the user. Required.
 	Realm string
@@ -56,6 +56,9 @@ type GinJWTMiddleware struct {
 	// User can define own Unauthorized func.
 	Unauthorized func(*gin.Context, int, string)
 
+	// Set the identity handler function
+	IdentityHandler func(jwt.MapClaims) string
+
 	// TokenLookup is a string in the form of "<source>:<name>" that is used
 	// to extract token from the request.
 	// Optional. Default value "header:Authorization".
@@ -64,6 +67,12 @@ type GinJWTMiddleware struct {
 	// - "query:<name>"
 	// - "cookie:<name>"
 	TokenLookup string
+
+	// TokenHeadName is a string in the header. Default value is "Bearer"
+	TokenHeadName string
+
+	// TimeFunc provides the current time. You can override it to use another time value. This is useful for testing or if your server uses a different time zone than your tokens.
+	TimeFunc func() time.Time
 }
 
 // Login form structure.
@@ -87,6 +96,15 @@ func (mw *GinJWTMiddleware) MiddlewareInit() error {
 		mw.Timeout = time.Hour
 	}
 
+	if mw.TimeFunc == nil {
+		mw.TimeFunc = time.Now
+	}
+
+	mw.TokenHeadName = strings.TrimSpace(mw.TokenHeadName)
+	if len(mw.TokenHeadName) == 0 {
+		mw.TokenHeadName = "Bearer"
+	}
+
 	if mw.Authorizator == nil {
 		mw.Authorizator = func(userID string, c *gin.Context) bool {
 			return true
@@ -102,12 +120,14 @@ func (mw *GinJWTMiddleware) MiddlewareInit() error {
 		}
 	}
 
-	if mw.Realm == "" {
-		return errors.New("realm is required")
+	if mw.IdentityHandler == nil {
+		mw.IdentityHandler = func(claims jwt.MapClaims) string {
+			return claims["id"].(string)
+		}
 	}
 
-	if mw.Authenticator == nil {
-		return errors.New("authenticator is required")
+	if mw.Realm == "" {
+		return errors.New("realm is required")
 	}
 
 	if mw.Key == nil {
@@ -142,7 +162,7 @@ func (mw *GinJWTMiddleware) middlewareImpl(c *gin.Context) {
 
 	claims := token.Claims.(jwt.MapClaims)
 
-	id := claims["id"].(string)
+	id := mw.IdentityHandler(claims)
 	c.Set("JWT_PAYLOAD", claims)
 	c.Set("userID", id)
 
@@ -169,6 +189,11 @@ func (mw *GinJWTMiddleware) LoginHandler(c *gin.Context) {
 		return
 	}
 
+	if mw.Authenticator == nil {
+		mw.unauthorized(c, http.StatusInternalServerError, "Missing define authenticator func")
+		return
+	}
+
 	userID, ok := mw.Authenticator(loginVals.Username, loginVals.Password, c)
 
 	if !ok {
@@ -190,10 +215,10 @@ func (mw *GinJWTMiddleware) LoginHandler(c *gin.Context) {
 		userID = loginVals.Username
 	}
 
-	expire := time.Now().Add(mw.Timeout)
+	expire := mw.TimeFunc().Add(mw.Timeout)
 	claims["id"] = userID
 	claims["exp"] = expire.Unix()
-	claims["orig_iat"] = time.Now().Unix()
+	claims["orig_iat"] = mw.TimeFunc().Unix()
 
 	tokenString, err := token.SignedString(mw.Key)
 
@@ -217,7 +242,7 @@ func (mw *GinJWTMiddleware) RefreshHandler(c *gin.Context) {
 
 	origIat := int64(claims["orig_iat"].(float64))
 
-	if origIat < time.Now().Add(-mw.MaxRefresh).Unix() {
+	if origIat < mw.TimeFunc().Add(-mw.MaxRefresh).Unix() {
 		mw.unauthorized(c, http.StatusUnauthorized, "Token is expired.")
 		return
 	}
@@ -230,7 +255,7 @@ func (mw *GinJWTMiddleware) RefreshHandler(c *gin.Context) {
 		newClaims[key] = claims[key]
 	}
 
-	expire := time.Now().Add(mw.Timeout)
+	expire := mw.TimeFunc().Add(mw.Timeout)
 	newClaims["id"] = claims["id"]
 	newClaims["exp"] = expire.Unix()
 	newClaims["orig_iat"] = origIat
@@ -273,8 +298,8 @@ func (mw *GinJWTMiddleware) TokenGenerator(userID string) string {
 	}
 
 	claims["id"] = userID
-	claims["exp"] = time.Now().Add(mw.Timeout).Unix()
-	claims["orig_iat"] = time.Now().Unix()
+	claims["exp"] = mw.TimeFunc().Add(mw.Timeout).Unix()
+	claims["orig_iat"] = mw.TimeFunc().Unix()
 
 	tokenString, _ := token.SignedString(mw.Key)
 
@@ -289,7 +314,7 @@ func (mw *GinJWTMiddleware) jwtFromHeader(c *gin.Context, key string) (string, e
 	}
 
 	parts := strings.SplitN(authHeader, " ", 2)
-	if !(len(parts) == 2 && parts[0] == "Bearer") {
+	if !(len(parts) == 2 && parts[0] == mw.TokenHeadName) {
 		return "", errors.New("invalid auth header")
 	}
 

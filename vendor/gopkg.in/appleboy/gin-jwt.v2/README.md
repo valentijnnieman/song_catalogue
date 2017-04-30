@@ -1,6 +1,6 @@
 # JWT Middleware for Gin Framework
 
-[![GoDoc](https://godoc.org/github.com/appleboy/gin-jwt?status.svg)](https://godoc.org/github.com/appleboy/gin-jwt)  [![Build Status](http://drone.wu-boy.com/api/badges/appleboy/gin-jwt/status.svg)](http://drone.wu-boy.com/appleboy/gin-jwt) [![Go Report Card](https://goreportcard.com/badge/github.com/appleboy/gin-jwt)](https://goreportcard.com/report/github.com/appleboy/gin-jwt) [![codecov](https://codecov.io/gh/appleboy/gin-jwt/branch/master/graph/badge.svg)](https://codecov.io/gh/appleboy/gin-jwt) [![codebeat badge](https://codebeat.co/badges/c4015f07-df23-4c7c-95ba-9193a12e14b1)](https://codebeat.co/projects/github-com-appleboy-gin-jwt) [![license](http://img.shields.io/badge/license-MIT-red.svg?style=flat)](https://raw.githubusercontent.com/appleboy/gin-jwt/master/LICENSE)
+[![GitHub tag](https://img.shields.io/github/tag/appleboy/gin-jwt.svg)](https://github.com/appleboy/gin-jwt/releases) [![GoDoc](https://godoc.org/github.com/appleboy/gin-jwt?status.svg)](https://godoc.org/github.com/appleboy/gin-jwt)  [![Build Status](http://drone.wu-boy.com/api/badges/appleboy/gin-jwt/status.svg)](http://drone.wu-boy.com/appleboy/gin-jwt) [![Go Report Card](https://goreportcard.com/badge/github.com/appleboy/gin-jwt)](https://goreportcard.com/report/github.com/appleboy/gin-jwt) [![codecov](https://codecov.io/gh/appleboy/gin-jwt/branch/master/graph/badge.svg)](https://codecov.io/gh/appleboy/gin-jwt) [![codebeat badge](https://codebeat.co/badges/c4015f07-df23-4c7c-95ba-9193a12e14b1)](https://codebeat.co/projects/github-com-appleboy-gin-jwt) [![Sourcegraph](https://sourcegraph.com/github.com/appleboy/gin-jwt/-/badge.svg)](https://sourcegraph.com/github.com/appleboy/gin-jwt?badge)
 
 This is a middleware for [Gin](https://github.com/gin-gonic/gin) framework.
 
@@ -40,6 +40,7 @@ import "gopkg.in/appleboy/gin-jwt.v1"
 
 Please see [server example file](example/server.go).
 
+[embedmd]:# (example/server.go go)
 ```go
 package main
 
@@ -48,8 +49,8 @@ import (
 	"os"
 	"time"
 
-	"gopkg.in/appleboy/gin-jwt.v2"
-	"gopkg.in/gin-gonic/gin.v1"
+	"github.com/appleboy/gin-jwt"
+	"github.com/gin-gonic/gin"
 )
 
 func helloHandler(c *gin.Context) {
@@ -104,6 +105,12 @@ func main() {
 		TokenLookup: "header:Authorization",
 		// TokenLookup: "query:token",
 		// TokenLookup: "cookie:token",
+
+		// TokenHeadName is a string in the header. Default value is "Bearer"
+		TokenHeadName: "Bearer",
+
+		// TimeFunc provides the current time. You can override it to use another time value. This is useful for testing or if your server uses a different time zone than your tokens.
+		TimeFunc: time.Now,
 	}
 
 	r.POST("/login", authMiddleware.LoginHandler)

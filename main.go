@@ -4,10 +4,9 @@ import (
   "fmt"
   "time"
   "gopkg.in/appleboy/gin-jwt.v2"
+  "github.com/gin-gonic/gin"
   "gopkg.in/gin-contrib/cors.v1"
-  "gopkg.in/gin-gonic/gin.v1"
   "github.com/jinzhu/gorm"
-  _ "github.com/jinzhu/gorm/dialects/postgres"
   "github.com/valentijnnieman/song_catalogue/models"
 )
 
