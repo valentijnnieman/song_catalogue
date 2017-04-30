@@ -16,7 +16,6 @@ func main() {
   //var versions []Version
 
   db, err := gorm.Open("postgres", os.Getenv("DATABASE_URL"))
-  db.AutoMigrate(&models.User{}, &models.Artist{}, &models.Song{}, &models.Version{})
   fmt.Printf("%s", err)
   defer db.Close()
 
