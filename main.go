@@ -2,6 +2,7 @@ package main
 
 import (
   "fmt"
+  "os"
   "time"
   "gopkg.in/appleboy/gin-jwt.v2"
   "github.com/gin-gonic/gin"
@@ -14,13 +15,14 @@ func main() {
   //var song Song
   //var versions []Version
 
-  db, err := gorm.Open("postgres", "host=localhost user=vaal dbname=song_catalogue sslmode=disable password=testing")
+  db, err := gorm.Open("postgres", os.Getenv("DATABASE_URL"))
+  db.AutoMigrate(&models.User{}, &models.Artist{}, &models.Song{}, &models.Version{})
   fmt.Printf("%s", err)
   defer db.Close()
 
   r := gin.Default()
 	r.Use(cors.New(cors.Config{
-    AllowOrigins:     []string{"http://localhost:9000"},
+    AllowOrigins:     []string{"https://valentijnnieman.github.io/song_catalogue_front"},
 		AllowMethods:     []string{"PUT", "PATCH", "GET", "POST"},
 		AllowHeaders:     []string{"Origin", "Authorization", "Content-Type"},
 		ExposeHeaders:    []string{"Content-Length"},
