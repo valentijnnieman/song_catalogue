@@ -15,6 +15,7 @@ import (
 func main() {
   //var song Song
   //var versions []Version
+  gin.SetMode(gin.ReleaseMode)
 
   fmt.Printf("DATABASE_URL IS: ")
   fmt.Printf(os.Getenv("DATABASE_URL"))
