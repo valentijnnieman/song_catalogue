@@ -17,8 +17,6 @@ func main() {
   //var versions []Version
   gin.SetMode(gin.ReleaseMode)
 
-  fmt.Printf("DATABASE_URL IS: ")
-  fmt.Printf(os.Getenv("DATABASE_URL"))
   db, err := gorm.Open("postgres", os.Getenv("DATABASE_URL"))
   fmt.Printf("%s", err)
   defer db.Close()
@@ -76,20 +74,6 @@ func main() {
       // TokenLookup: "cookie:token",
   }
   // USED FOR TESTING & DEMO
-  //r.GET("/artist/:id", func(c *gin.Context) {
-    //var artist models.Artist
-    //db.First(&artist)
-    //db.Model(&artist).Related(&artist.Songs, "Songs")
-    //var get_versions []models.Song
-    //for _, song := range artist.Songs {
-      //db.Model(&song).Related(&song.Versions, "Versions")
-      //get_versions = append(get_versions, song)
-    //}
-    //artist.Songs = get_versions
-    //c.JSON(200, gin.H{
-      //"artist": artist,
-    //})
-  //})
 
   r.GET("/ping", func(c *gin.Context) {
     c.JSON(200, gin.H{
@@ -101,10 +85,10 @@ func main() {
 
   auth := r.Group("/auth")
 	auth.Use(cors.New(cors.Config{
-    AllowOrigins:     []string{"http://localhost:9000"},
-		AllowMethods:     []string{"PUT", "PATCH"},
-		AllowHeaders:     []string{"Origin", "Authorization"},
-		ExposeHeaders:    []string{"Content-Length", "Authorization"},
+    AllowOrigins:     []string{"https://valentijnnieman.github.io/song_catalogue_front"},
+		AllowMethods:     []string{"PUT", "PATCH", "OPTIONS", "GET", "POST"},
+		AllowHeaders:     []string{"Origin", "Authorization", "Content-Type"},
+		ExposeHeaders:    []string{"Content-Length"},
 		AllowCredentials: true,
 		AllowOriginFunc: func(origin string) bool {
 			return origin == "https://github.com"
@@ -136,17 +120,5 @@ func main() {
       })
     })
   }
-
-  //r.GET("/song:id", func(c *gin.Context) {
-    //var song models.Song
-    //db.First(&song, 1)
-    //db.Model(&song).Related(&song.Versions, "Versions")
-    //c.JSON(200, gin.H{
-      //"song": song,
-    //})
-  //})
-
-  //r.POST("/song", func(c *gin.Context) {
-  //}
   r.Run() // listen and serve on 0.0.0.0:8080
 }
