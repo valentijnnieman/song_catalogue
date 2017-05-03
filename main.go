@@ -2,7 +2,7 @@ package main
 
 import (
   "fmt"
-  "os"
+  //"os"
   "time"
   "gopkg.in/appleboy/gin-jwt.v2"
   "github.com/gin-gonic/gin"
@@ -15,9 +15,14 @@ import (
 func main() {
   //var song Song
   //var versions []Version
-  gin.SetMode(gin.ReleaseMode)
+  //gin.SetMode(gin.ReleaseMode)
 
-  db, err := gorm.Open("postgres", os.Getenv("DATABASE_URL"))
+  // production db
+  //db, err := gorm.Open("postgres", os.Getenv("DATABASE_URL"))
+
+  // local db
+  db, err := gorm.Open("postgres", "host=localhost user=vaal dbname=song_catalogue sslmode=disable password=testing")
+
   fmt.Printf("%s", err)
   defer db.Close()
 
@@ -29,7 +34,7 @@ func main() {
 		ExposeHeaders:    []string{"Content-Length"},
 		AllowCredentials: true,
 		AllowOriginFunc: func(origin string) bool {
-			return origin == "https://valentijnnieman.github.io"
+      return origin == "http://localhost:9000"
 		},
 		MaxAge: 12 * time.Hour,
 	}))
@@ -91,7 +96,7 @@ func main() {
 		ExposeHeaders:    []string{"Content-Length"},
 		AllowCredentials: true,
 		AllowOriginFunc: func(origin string) bool {
-			return origin == "https://valentijnnieman.github.io"
+      return origin == "http://localhost:9000"
 		},
 		MaxAge: 12 * time.Hour,
 	}))
