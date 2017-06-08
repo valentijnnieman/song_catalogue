@@ -2,7 +2,7 @@ package main
 
 import (
   "fmt"
-  //"os"
+  "os"
   "time"
   "gopkg.in/appleboy/gin-jwt.v2"
   "github.com/gin-gonic/gin"
@@ -15,7 +15,7 @@ import (
 func main() {
   var db_url string;
   if gin.Mode() == "debug" {
-    db_url = "host=localhost user=valentijnnieman dbname=song_catalogue sslmode=disable password=testing"
+    db_url = "host=localhost user=vaal dbname=song_catalogue sslmode=disable password=testing"
   } else {
     db_url = os.Getenv("DATABASE_URL")
   }
