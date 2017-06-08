@@ -13,7 +13,13 @@ import (
 )
 
 func main() {
-  db, err := gorm.Open("postgres", os.Getenv("DATABASE_URL"))
+  var db_url string;
+  if gin.Mode() == "debug" {
+    db_url = "host=localhost user=valentijnnieman dbname=song_catalogue sslmode=disable password=testing"
+  } else {
+    db_url = os.Getenv("DATABASE_URL")
+  }
+  db, err := gorm.Open("postgres", db_url)
   fmt.Printf("%s", err)
   defer db.Close()
 
@@ -114,6 +120,15 @@ func main() {
       c.JSON(200, gin.H{
         "artist": artist,
       })
+    })
+    auth.POST("/artist/:id/song/:id", func(c *gin.Context) {
+
+    })
+    auth.PUT("/artist/:id/song/:id", func(c *gin.Context) {
+
+    })
+    auth.DELETE("/artist/:id/song/:id", func(c *gin.Context) {
+
     })
   }
   r.Run() // listen and serve on 0.0.0.0:8080
