@@ -13,8 +13,16 @@ import (
 )
 
 type NEWSONG struct {
+	TITLE     string           `json:"title" binding:"required"`
+	ARTIST_ID int              `json:"artist_id" binding:"required"`
+	VERSIONS  []models.Version `json:"versions"`
+}
+type NEWVERSION struct {
 	TITLE     string `json:"title" binding:"required"`
-	ARTIST_ID int    `json:"artist_id" binding:"required"`
+	RECORDING string `json:"recording" binding:"required"`
+	NOTES     string `json:"notes" binding:"required"`
+	LYRICS    string `json:"lyrics" binding:"required"`
+	SONG_ID   int    `json:"song_id" binding:"required"`
 }
 
 func main() {
@@ -30,7 +38,7 @@ func main() {
 
 	r := gin.Default()
 	r.Use(cors.New(cors.Config{
-		AllowMethods:     []string{"PUT", "PATCH", "GET", "POST"},
+		AllowMethods:     []string{"PUT", "PATCH", "GET", "POST", "DELETE"},
 		AllowHeaders:     []string{"Origin", "Authorization", "Content-Type"},
 		ExposeHeaders:    []string{"Content-Length"},
 		AllowCredentials: true,
@@ -96,7 +104,7 @@ func main() {
 	auth := r.Group("/auth")
 	auth.Use(cors.New(cors.Config{
 		AllowAllOrigins:  true,
-		AllowMethods:     []string{"PUT", "PATCH", "OPTIONS", "GET", "POST"},
+		AllowMethods:     []string{"PUT", "PATCH", "OPTIONS", "GET", "POST", "DELETE"},
 		AllowHeaders:     []string{"Origin", "Authorization", "Content-Type"},
 		ExposeHeaders:    []string{"Content-Length"},
 		AllowCredentials: true,
@@ -112,10 +120,18 @@ func main() {
 				"test": "yay",
 			})
 		})
-		auth.GET("/artist/:id", func(c *gin.Context) {
+		auth.GET("/artist/:artist_id", func(c *gin.Context) {
 			var artist models.Artist
 
-			db.First(&artist, c.Param("id"))
+			db.First(&artist, c.Param("artist_id"))
+			c.JSON(200, gin.H{
+				"artist": artist,
+			})
+		})
+		auth.GET("/artist/:artist_id/songs", func(c *gin.Context) {
+			var artist models.Artist
+
+			db.First(&artist, c.Param("artist_id"))
 			db.Model(&artist).Related(&artist.Songs, "Songs")
 			var get_versions []models.Song
 			for _, song := range artist.Songs {
@@ -127,35 +143,63 @@ func main() {
 				"artist": artist,
 			})
 		})
-		auth.POST("/test", func(c *gin.Context) {
-			c.JSON(200, gin.H{
-				"status": "posted",
-				"hi":     "hi",
-			})
-		})
-		auth.POST("/artist/:id/song/create", func(c *gin.Context) {
+		auth.POST("/artist/:artist_id/song/create", func(c *gin.Context) {
 			var new_song NEWSONG
 			c.BindJSON(&new_song)
 
-			var artist models.Artist
-			var song = models.Song{Title: new_song.TITLE, ArtistID: new_song.ARTIST_ID}
-
-			fmt.Printf("title: %s \n", new_song.TITLE)
-			fmt.Printf("id: %s \n", new_song.ARTIST_ID)
+			var song = models.Song{Title: new_song.TITLE, ArtistID: new_song.ARTIST_ID, Versions: new_song.VERSIONS}
 			db.Create(&song)
 
-			db.First(&artist, c.Param("id"))
-			db.Model(&artist).Related(&artist.Songs, "Songs")
+			c.JSON(200, gin.H{
+				"song": song,
+			})
+		})
+		auth.DELETE("/artist/:artist_id/song/:song_id/delete", func(c *gin.Context) {
+			var song models.Song
 
+			db.Where("artist_id = ?", c.Param("artist_id")).First(&song, c.Param("song_id"))
+
+			db.Delete(&song)
 			c.JSON(200, gin.H{
 				"status": "ok",
 			})
 		})
-		auth.PUT("/artist/:id/song/:id", func(c *gin.Context) {
+		auth.POST("/song/:song_id/version/create", func(c *gin.Context) {
+			var new_version NEWVERSION
+			c.BindJSON(&new_version)
 
+			fmt.Printf("%s \n", &new_version)
+
+			var version = models.Version{Title: new_version.TITLE, Recording: new_version.RECORDING, Notes: new_version.NOTES, Lyrics: new_version.LYRICS, SongID: new_version.SONG_ID}
+
+			db.Create(&version)
+			c.JSON(200, gin.H{
+				"version": version,
+			})
 		})
-		auth.DELETE("/artist/:id/song/:id", func(c *gin.Context) {
+		auth.PATCH("/song/:song_id/version/:version_id/update", func(c *gin.Context) {
+			var new_version NEWVERSION
+			c.BindJSON(&new_version)
 
+			var current_version models.Version
+			db.First(&current_version, c.Param("version_id"))
+			db.Model(&current_version).Updates(new_version)
+
+			fmt.Printf("%s \n", &new_version)
+
+			c.JSON(200, gin.H{
+				"version": current_version,
+			})
+		})
+		auth.DELETE("/song/:song_id/version/:version_id/delete", func(c *gin.Context) {
+			var version models.Version
+
+			db.Where("song_id = ?", c.Param("song_id")).First(&version, c.Param("version_id"))
+
+			db.Delete(&version)
+			c.JSON(200, gin.H{
+				"status": "ok",
+			})
 		})
 	}
 	r.Run() // listen and serve on 0.0.0.0:8080
