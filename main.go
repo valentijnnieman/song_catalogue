@@ -68,11 +68,6 @@ func main() {
 		},
 		Authorizator: func(userId string, c *gin.Context) bool {
 			return true
-			//if userId == "Hans" {
-			//return true
-			//}
-
-			//return false
 		},
 		Unauthorized: func(c *gin.Context, code int, message string) {
 			c.JSON(code, gin.H{
@@ -120,10 +115,13 @@ func main() {
 				"test": "yay",
 			})
 		})
-		auth.GET("/artist/:artist_id", func(c *gin.Context) {
+		auth.GET("/artist", func(c *gin.Context) {
 			var artist models.Artist
 
-			db.First(&artist, c.Param("artist_id"))
+			var user_id string
+			c.BindJSON(&user_id)
+
+			db.First(&artist, user_id)
 			c.JSON(200, gin.H{
 				"artist": artist,
 			})
