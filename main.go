@@ -13,9 +13,8 @@ import (
 )
 
 type NEWSONG struct {
-	TITLE     string           `json:"title" binding:"required"`
-	ARTIST_ID int              `json:"artist_id" binding:"required"`
-	VERSIONS  []models.Version `json:"versions"`
+	TITLE    string           `json:"title" binding:"required"`
+	VERSIONS []models.Version `json:"versions"`
 }
 type NEWVERSION struct {
 	TITLE     string `json:"title" binding:"required"`
@@ -110,59 +109,53 @@ func main() {
 	{
 		auth.GET("/refresh_token", authMiddleware.RefreshHandler)
 
-		auth.GET("/test", func(c *gin.Context) {
-			c.JSON(200, gin.H{
-				"test": "yay",
-			})
-		})
-		auth.GET("/artist", func(c *gin.Context) {
-			var artist models.Artist
+		auth.GET("/songs", func(c *gin.Context) {
+			claims := jwt.ExtractClaims(c)
+			var user models.User
 
-			var user_id string
-			c.BindJSON(&user_id)
-
-			db.First(&artist, user_id)
-			c.JSON(200, gin.H{
-				"artist": artist,
-			})
-		})
-		auth.GET("/artist/:artist_id/songs", func(c *gin.Context) {
-			var artist models.Artist
-
-			db.First(&artist, c.Param("artist_id"))
-			db.Model(&artist).Related(&artist.Songs, "Songs")
+			db.Where("name = ?", claims["id"]).First(&user)
+			db.Model(&user).Related(&user.Songs, "Songs")
 			var get_versions []models.Song
-			for _, song := range artist.Songs {
+			for _, song := range user.Songs {
 				db.Model(&song).Related(&song.Versions, "Versions")
 				get_versions = append(get_versions, song)
 			}
-			artist.Songs = get_versions
+			user.Songs = get_versions
 			c.JSON(200, gin.H{
-				"artist": artist,
+				"songs": user.Songs,
 			})
 		})
-		auth.POST("/artist/:artist_id/song/create", func(c *gin.Context) {
+
+		auth.POST("/song/create", func(c *gin.Context) {
+			claims := jwt.ExtractClaims(c)
+			var user models.User
+			db.Where("name = ?", claims["id"]).First(&user)
+
 			var new_song NEWSONG
 			c.BindJSON(&new_song)
 
-			var song = models.Song{Title: new_song.TITLE, ArtistID: new_song.ARTIST_ID, Versions: new_song.VERSIONS}
+			var song = models.Song{Title: new_song.TITLE, UserID: int(user.ID), Versions: new_song.VERSIONS}
 			db.Create(&song)
 
 			c.JSON(200, gin.H{
 				"song": song,
 			})
 		})
-		auth.DELETE("/artist/:artist_id/song/:song_id/delete", func(c *gin.Context) {
+		auth.DELETE("/song/:song_id/delete", func(c *gin.Context) {
+			claims := jwt.ExtractClaims(c)
+			var user models.User
+			db.Where("name = ?", claims["id"]).First(&user)
+
 			var song models.Song
 
-			db.Where("artist_id = ?", c.Param("artist_id")).First(&song, c.Param("song_id"))
+			db.Where("user_id = ?", user.ID).First(&song, c.Param("song_id"))
 
 			db.Delete(&song)
 			c.JSON(200, gin.H{
 				"status": "ok",
 			})
 		})
-		auth.POST("/song/:song_id/version/create", func(c *gin.Context) {
+		auth.POST("/version/create", func(c *gin.Context) {
 			var new_version NEWVERSION
 			c.BindJSON(&new_version)
 
@@ -175,15 +168,13 @@ func main() {
 				"version": version,
 			})
 		})
-		auth.PATCH("/song/:song_id/version/:version_id/update", func(c *gin.Context) {
+		auth.PATCH("/version/:version_id/update", func(c *gin.Context) {
 			var new_version NEWVERSION
 			c.BindJSON(&new_version)
 
 			var current_version models.Version
 			db.First(&current_version, c.Param("version_id"))
 			db.Model(&current_version).Updates(new_version)
-
-			fmt.Printf("%s \n", &new_version)
 
 			c.JSON(200, gin.H{
 				"version": current_version,

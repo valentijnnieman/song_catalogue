@@ -13,5 +13,5 @@ func main() {
 	fmt.Printf("%s", err)
 	defer db.Close()
 
-	db.AutoMigrate(&models.User{}, &models.Artist{}, &models.Song{}, &models.Version{})
+	db.AutoMigrate(&models.User{}, &models.Song{}, &models.Version{})
 }
