@@ -2,6 +2,10 @@ package main
 
 import (
 	"fmt"
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/session"
+	//"github.com/aws/aws-sdk-go/service/s3"
+	"github.com/aws/aws-sdk-go/service/s3/s3manager"
 	"github.com/gin-gonic/gin"
 	"github.com/jinzhu/gorm"
 	_ "github.com/jinzhu/gorm/dialects/postgres"
@@ -16,12 +20,18 @@ type NEWSONG struct {
 	TITLE    string           `json:"title" binding:"required"`
 	VERSIONS []models.Version `json:"versions"`
 }
+
 type NEWVERSION struct {
 	TITLE     string `json:"title" binding:"required"`
 	RECORDING string `json:"recording" binding:"required"`
 	NOTES     string `json:"notes" binding:"required"`
 	LYRICS    string `json:"lyrics" binding:"required"`
 	SONG_ID   int    `json:"song_id" binding:"required"`
+}
+
+func exitErrorf(msg string, args ...interface{}) {
+	fmt.Fprintf(os.Stderr, msg+"\n", args...)
+	os.Exit(1)
 }
 
 func main() {
@@ -34,6 +44,12 @@ func main() {
 	db, err := gorm.Open("postgres", db_url)
 	fmt.Printf("%s", err)
 	defer db.Close()
+
+	sess := session.Must(session.NewSessionWithOptions(session.Options{
+		SharedConfigState: session.SharedConfigEnable,
+	}))
+	uploader := s3manager.NewUploader(sess)
+	//downloader := s3manager.NewDownloader(sess)
 
 	r := gin.Default()
 	r.Use(cors.New(cors.Config{
@@ -92,6 +108,23 @@ func main() {
 			"ping": "success!",
 		})
 	})
+
+	//r.GET("/recording/:filename", func(c *gin.Context) {
+	//filename := c.Param("filename")
+	//var buffer []byte
+	//var file = aws.NewWriteAtBuffer(buffer)
+	//_, err := downloader.Download(file,
+	//&s3.GetObjectInput{
+	//Bucket: aws.String("song-catalogue-storage"),
+	//Key:    aws.String(filename),
+	//})
+
+	//if err != nil {
+	//fmt.Printf("%s \n", err)
+	//}
+
+	//c.Writer.Write(buffer)
+	//})
 
 	r.POST("/login", authMiddleware.LoginHandler)
 
@@ -155,6 +188,40 @@ func main() {
 				"status": "ok",
 			})
 		})
+
+		auth.POST("/version/recording", func(c *gin.Context) {
+			version_id := c.PostForm("version_id")
+			song_id := c.PostForm("song_id")
+			file, _ := c.FormFile("file")
+			openfile, _ := file.Open()
+			new_filepath := "recording_" + song_id + version_id + "_" + file.Filename
+
+			_, err = uploader.Upload(&s3manager.UploadInput{
+				Bucket: aws.String("song-catalogue-storage"),
+				Key:    aws.String(new_filepath),
+				Body:   openfile,
+			})
+
+			if err != nil {
+				// Print the error and exit.
+				exitErrorf("Unable to upload! %s \n", err)
+			}
+
+			songpath := "https://s3.us-east-2.amazonaws.com/song-catalogue-storage/" + new_filepath
+
+			var version models.Version
+			db.Where("song_id = ?", song_id).First(&version, version_id)
+
+			version.Recording = songpath
+
+			db.Save(&version)
+
+			fmt.Printf("Successfully uploaded! ")
+			c.JSON(200, gin.H{
+				"version": version,
+			})
+		})
+
 		auth.POST("/version/create", func(c *gin.Context) {
 			var new_version NEWVERSION
 			c.BindJSON(&new_version)
@@ -168,6 +235,7 @@ func main() {
 				"version": version,
 			})
 		})
+
 		auth.PATCH("/version/:version_id/update", func(c *gin.Context) {
 			var new_version NEWVERSION
 			c.BindJSON(&new_version)
@@ -180,6 +248,7 @@ func main() {
 				"version": current_version,
 			})
 		})
+
 		auth.DELETE("/song/:song_id/version/:version_id/delete", func(c *gin.Context) {
 			var version models.Version
 
