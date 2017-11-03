@@ -5,13 +5,13 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
 	//"github.com/aws/aws-sdk-go/service/s3"
+	"github.com/appleboy/gin-jwt"
 	"github.com/aws/aws-sdk-go/service/s3/s3manager"
+	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	"github.com/jinzhu/gorm"
 	_ "github.com/jinzhu/gorm/dialects/postgres"
 	"github.com/valentijnnieman/song_catalogue/models"
-	"gopkg.in/appleboy/gin-jwt.v2"
-	"gopkg.in/gin-contrib/cors.v1"
 	"os"
 	"time"
 )
@@ -44,6 +44,8 @@ func main() {
 	db, err := gorm.Open("postgres", db_url)
 	fmt.Printf("%s", err)
 	defer db.Close()
+
+	db.AutoMigrate(&models.User{}, &models.Song{}, &models.Version{})
 
 	sess := session.Must(session.NewSessionWithOptions(session.Options{
 		SharedConfigState: session.SharedConfigEnable,
