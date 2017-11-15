@@ -1,1 +1,1 @@
-web: song_catalogue
+web: api
