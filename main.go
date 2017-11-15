@@ -2,18 +2,20 @@ package main
 
 import (
 	"fmt"
+
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
 	//"github.com/aws/aws-sdk-go/service/s3"
+	"os"
+	"time"
+
 	"github.com/appleboy/gin-jwt"
 	"github.com/aws/aws-sdk-go/service/s3/s3manager"
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	"github.com/jinzhu/gorm"
 	_ "github.com/jinzhu/gorm/dialects/postgres"
-	"github.com/valentijnnieman/song_catalogue/models"
-	"os"
-	"time"
+	"github.com/valentijnnieman/song_catalogue/api/models"
 )
 
 type NEWSONG struct {
@@ -47,6 +49,11 @@ func main() {
 
 	db.AutoMigrate(&models.User{}, &models.Song{}, &models.Version{})
 
+	// Create a demo account on server start
+	var user = models.User{Name: "demo", Password: "demo123"}
+	db.NewRecord(user) // => returns `true` as primary key is blank
+	db.Create(&user)
+
 	sess := session.Must(session.NewSessionWithOptions(session.Options{
 		SharedConfigState: session.SharedConfigEnable,
 	}))
@@ -60,11 +67,7 @@ func main() {
 		ExposeHeaders:    []string{"Content-Length"},
 		AllowCredentials: true,
 		AllowOriginFunc: func(origin string) bool {
-			if gin.Mode() == "debug" {
-				return origin == "http://localhost:9000"
-			} else {
-				return origin == "https://valentijnnieman.github.io"
-			}
+			return origin == "http://localhost:3000"
 		},
 		MaxAge: 12 * time.Hour,
 	}))
@@ -92,41 +95,14 @@ func main() {
 				"message": message,
 			})
 		},
-		// TokenLookup is a string in the form of "<source>:<name>" that is used
-		// to extract token from the request.
-		// Optional. Default value "header:Authorization".
-		// Possible values:
-		// - "header:<name>"
-		// - "query:<name>"
-		// - "cookie:<name>"
 		TokenLookup: "header:Authorization",
-		// TokenLookup: "query:token",
-		// TokenLookup: "cookie:token",
 	}
-	// USED FOR TESTING & DEMO
 
 	r.GET("/ping", func(c *gin.Context) {
 		c.JSON(200, gin.H{
 			"ping": "success!",
 		})
 	})
-
-	//r.GET("/recording/:filename", func(c *gin.Context) {
-	//filename := c.Param("filename")
-	//var buffer []byte
-	//var file = aws.NewWriteAtBuffer(buffer)
-	//_, err := downloader.Download(file,
-	//&s3.GetObjectInput{
-	//Bucket: aws.String("song-catalogue-storage"),
-	//Key:    aws.String(filename),
-	//})
-
-	//if err != nil {
-	//fmt.Printf("%s \n", err)
-	//}
-
-	//c.Writer.Write(buffer)
-	//})
 
 	r.POST("/login", authMiddleware.LoginHandler)
 
