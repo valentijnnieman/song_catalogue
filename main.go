@@ -59,7 +59,7 @@ func main() {
 		allowed_origin = "http://localhost:3000"
 	} else {
 		db_url = os.Getenv("DATABASE_URL")
-		allowed_origin = "https://valentijnnieman.github.io"
+		allowed_origin = "https://valentijnnieman.github.io/song_catalogue_front/"
 	}
 	db, err := gorm.Open("postgres", db_url)
 	fmt.Printf("%s", err)
