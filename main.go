@@ -25,6 +25,12 @@ type NEWUSER struct {
 	SONGS    []models.Song `json: "songs"`
 }
 
+type PASSWORDRESET struct {
+	EMAIL       string `json: "email" binding: "required"`
+	PASSWORD    string `json: "password" binding: "required"`
+	NEWPASSWORD string `json: "newPassword" binding: "required"`
+}
+
 type NEWSONG struct {
 	TITLE    string           `json:"title" binding:"required"`
 	VERSIONS []models.Version `json:"versions"`
@@ -149,6 +155,37 @@ func main() {
 	{
 		auth.GET("/refresh_token", authMiddleware.RefreshHandler)
 
+		auth.POST("/user/reset", func(c *gin.Context) {
+			var passwordReset PASSWORDRESET
+			c.BindJSON(&passwordReset)
+
+			claims := jwt.ExtractClaims(c)
+
+			if passwordReset.EMAIL != claims["id"] {
+				fmt.Println("email doesn't match!")
+				c.JSON(401, gin.H{
+					"error": "Email or password is incorrect",
+				})
+			}
+
+			var user models.User
+			db.Where("email = ?", claims["id"]).First(&user)
+
+			pwdError := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(passwordReset.PASSWORD))
+			if pwdError != nil {
+				fmt.Println("Passwords don't match!")
+				c.JSON(401, gin.H{
+					"error": "Password is incorrect",
+				})
+			} else {
+				user.Password = HashString(passwordReset.NEWPASSWORD)
+				db.Save(&user)
+				c.JSON(200, gin.H{
+					"error": "",
+				})
+			}
+		})
+
 		auth.GET("/songs", func(c *gin.Context) {
 			claims := jwt.ExtractClaims(c)
 			var user models.User
@@ -170,7 +207,6 @@ func main() {
 		auth.POST("/song/create", func(c *gin.Context) {
 			claims := jwt.ExtractClaims(c)
 			var user models.User
-			fmt.Println("claims[id]: ", claims["id"])
 			db.Where("email = ?", claims["id"]).First(&user)
 
 			var new_song NEWSONG
