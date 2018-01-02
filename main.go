@@ -53,13 +53,10 @@ func exitErrorf(msg string, args ...interface{}) {
 
 func main() {
 	var db_url string
-	var allowed_origin string
 	if gin.Mode() == "debug" {
 		db_url = "host=localhost user=vaal dbname=song_catalogue sslmode=disable password=testing"
-		allowed_origin = "http://localhost:3000"
 	} else {
 		db_url = os.Getenv("DATABASE_URL")
-		allowed_origin = "https://valentijnnieman.github.io/song_catalogue_front/"
 	}
 	db, err := gorm.Open("postgres", db_url)
 	fmt.Printf("%s", err)
@@ -85,7 +82,8 @@ func main() {
 		ExposeHeaders:    []string{"Content-Length"},
 		AllowCredentials: true,
 		AllowOriginFunc: func(origin string) bool {
-			return origin == allowed_origin
+			// return origin == allowed_origin
+			return true
 		},
 		MaxAge: 12 * time.Hour,
 	}))
