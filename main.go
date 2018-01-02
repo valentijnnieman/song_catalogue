@@ -5,6 +5,7 @@ import (
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
+	"golang.org/x/crypto/bcrypt"
 	//"github.com/aws/aws-sdk-go/service/s3"
 	"os"
 	"time"
@@ -18,6 +19,12 @@ import (
 	"github.com/valentijnnieman/song_catalogue/api/models"
 )
 
+type NEWUSER struct {
+	EMAIL    string        `json:"email" binding: "required"`
+	PASSWORD string        `json: "password" binding: "required"`
+	SONGS    []models.Song `json: "songs"`
+}
+
 type NEWSONG struct {
 	TITLE    string           `json:"title" binding:"required"`
 	VERSIONS []models.Version `json:"versions"`
@@ -29,6 +36,14 @@ type NEWVERSION struct {
 	NOTES     string `json:"notes" binding:"required"`
 	LYRICS    string `json:"lyrics" binding:"required"`
 	SONG_ID   int    `json:"song_id" binding:"required"`
+}
+
+func HashString(s string) string {
+	hs, error := bcrypt.GenerateFromPassword([]byte(s), 14)
+	if error != nil {
+		fmt.Errorf("%s", error)
+	}
+	return string(hs[:])
 }
 
 func exitErrorf(msg string, args ...interface{}) {
@@ -50,11 +65,11 @@ func main() {
 	db.AutoMigrate(&models.User{}, &models.Song{}, &models.Version{})
 
 	// Create a demo account on server start
-	var user = models.User{Name: "demo", Password: "demo123"}
-	db.NewRecord(user) // => returns `true` as primary key is blank
-	db.Create(&user)
+	var user = models.User{}
+	db.FirstOrCreate(&user, models.User{Email: "demodemodemo", Password: HashString("demo123")})
 
 	sess := session.Must(session.NewSessionWithOptions(session.Options{
+		Config:            aws.Config{Region: aws.String("us-east-2")},
 		SharedConfigState: session.SharedConfigEnable,
 	}))
 	uploader := s3manager.NewUploader(sess)
@@ -80,13 +95,14 @@ func main() {
 		MaxRefresh: time.Hour,
 		Authenticator: func(userId string, password string, c *gin.Context) (string, bool) {
 			var user models.User
-			db.Where("name = ?", userId).First(&user)
-			if user.Password == password {
+			db.Where("email = ?", userId).First(&user)
+			pwdError := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(password))
+			if pwdError == nil {
 				return userId, true
 			}
 			return userId, false
 		},
-		Authorizator: func(userId string, c *gin.Context) bool {
+		Authorizator: func(email string, c *gin.Context) bool {
 			return true
 		},
 		Unauthorized: func(c *gin.Context, code int, message string) {
@@ -106,6 +122,18 @@ func main() {
 
 	r.POST("/login", authMiddleware.LoginHandler)
 
+	r.POST("/register", func(c *gin.Context) {
+		var newUser NEWUSER
+		c.BindJSON(&newUser)
+		fmt.Println(newUser)
+
+		var user = models.User{Email: newUser.EMAIL, Password: HashString(newUser.PASSWORD)}
+		db.Create(&user)
+		c.JSON(200, gin.H{
+			"success": true,
+		})
+	})
+
 	auth := r.Group("/auth")
 	auth.Use(cors.New(cors.Config{
 		AllowAllOrigins:  true,
@@ -124,14 +152,15 @@ func main() {
 			claims := jwt.ExtractClaims(c)
 			var user models.User
 
-			db.Where("name = ?", claims["id"]).First(&user)
+			fmt.Println("claims[id]: ", claims["id"])
+			db.Where("email = ?", claims["id"]).First(&user)
 			db.Model(&user).Related(&user.Songs, "Songs")
-			var get_versions []models.Song
+			var getVersions []models.Song
 			for _, song := range user.Songs {
 				db.Model(&song).Related(&song.Versions, "Versions")
-				get_versions = append(get_versions, song)
+				getVersions = append(getVersions, song)
 			}
-			user.Songs = get_versions
+			user.Songs = getVersions
 			c.JSON(200, gin.H{
 				"songs": user.Songs,
 			})
@@ -140,7 +169,8 @@ func main() {
 		auth.POST("/song/create", func(c *gin.Context) {
 			claims := jwt.ExtractClaims(c)
 			var user models.User
-			db.Where("name = ?", claims["id"]).First(&user)
+			fmt.Println("claims[id]: ", claims["id"])
+			db.Where("email = ?", claims["id"]).First(&user)
 
 			var new_song NEWSONG
 			c.BindJSON(&new_song)
@@ -155,7 +185,7 @@ func main() {
 		auth.DELETE("/song/:song_id/delete", func(c *gin.Context) {
 			claims := jwt.ExtractClaims(c)
 			var user models.User
-			db.Where("name = ?", claims["id"]).First(&user)
+			db.Where("email = ?", claims["id"]).First(&user)
 
 			var song models.Song
 
