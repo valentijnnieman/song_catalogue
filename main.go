@@ -52,11 +52,6 @@ func HashString(s string) string {
 	return string(hs[:])
 }
 
-func exitErrorf(msg string, args ...interface{}) {
-	fmt.Fprintf(os.Stderr, msg+"\n", args...)
-	os.Exit(1)
-}
-
 func main() {
 	var db_url string
 	if gin.Mode() == "debug" {
@@ -155,7 +150,7 @@ func main() {
 	{
 		auth.GET("/refresh_token", authMiddleware.RefreshHandler)
 
-		auth.POST("/user/reset", func(c *gin.Context) {
+		auth.POST("/reset-password", func(c *gin.Context) {
 			var passwordReset PASSWORDRESET
 			c.BindJSON(&passwordReset)
 
@@ -204,7 +199,7 @@ func main() {
 			})
 		})
 
-		auth.POST("/song/create", func(c *gin.Context) {
+		auth.POST("/songs/create", func(c *gin.Context) {
 			claims := jwt.ExtractClaims(c)
 			var user models.User
 			db.Where("email = ?", claims["id"]).First(&user)
@@ -219,7 +214,7 @@ func main() {
 				"song": song,
 			})
 		})
-		auth.DELETE("/song/:song_id/delete", func(c *gin.Context) {
+		auth.DELETE("/songs/:song_id/delete", func(c *gin.Context) {
 			claims := jwt.ExtractClaims(c)
 			var user models.User
 			db.Where("email = ?", claims["id"]).First(&user)
@@ -234,7 +229,35 @@ func main() {
 			})
 		})
 
-		auth.POST("/version/recording", func(c *gin.Context) {
+		auth.POST("/versions/create", func(c *gin.Context) {
+			var new_version NEWVERSION
+			c.BindJSON(&new_version)
+
+			fmt.Printf("%s \n", &new_version)
+
+			var version = models.Version{Title: new_version.TITLE, Recording: new_version.RECORDING, Notes: new_version.NOTES, Lyrics: new_version.LYRICS, SongID: new_version.SONG_ID}
+
+			db.Create(&version)
+			c.JSON(200, gin.H{
+				"version": version,
+			})
+		})
+
+		auth.PATCH("/versions/:version_id/update", func(c *gin.Context) {
+			var new_version NEWVERSION
+			c.BindJSON(&new_version)
+
+			var current_version models.Version
+			db.First(&current_version, c.Param("version_id"))
+			db.Model(&current_version).Updates(new_version)
+
+			c.JSON(200, gin.H{
+				"version": current_version,
+			})
+		})
+
+		// Gin Gonic router complains if route has version_id as param, so we take it from post body
+		auth.POST("/versions/recording", func(c *gin.Context) {
 			version_id := c.PostForm("version_id")
 			song_id := c.PostForm("song_id")
 			file, _ := c.FormFile("file")
@@ -248,8 +271,7 @@ func main() {
 			})
 
 			if err != nil {
-				// Print the error and exit.
-				exitErrorf("Unable to upload! %s \n", err)
+				fmt.Errorf("%s", err)
 			}
 
 			songpath := "https://s3.us-east-2.amazonaws.com/song-catalogue-storage/" + new_filepath
@@ -267,37 +289,11 @@ func main() {
 			})
 		})
 
-		auth.POST("/version/create", func(c *gin.Context) {
-			var new_version NEWVERSION
-			c.BindJSON(&new_version)
-
-			fmt.Printf("%s \n", &new_version)
-
-			var version = models.Version{Title: new_version.TITLE, Recording: new_version.RECORDING, Notes: new_version.NOTES, Lyrics: new_version.LYRICS, SongID: new_version.SONG_ID}
-
-			db.Create(&version)
-			c.JSON(200, gin.H{
-				"version": version,
-			})
-		})
-
-		auth.PATCH("/version/:version_id/update", func(c *gin.Context) {
-			var new_version NEWVERSION
-			c.BindJSON(&new_version)
-
-			var current_version models.Version
-			db.First(&current_version, c.Param("version_id"))
-			db.Model(&current_version).Updates(new_version)
-
-			c.JSON(200, gin.H{
-				"version": current_version,
-			})
-		})
-
-		auth.DELETE("/song/:song_id/version/:version_id/delete", func(c *gin.Context) {
+		auth.DELETE("/versions/:version_id/delete", func(c *gin.Context) {
+			song_id := c.PostForm("song_id")
 			var version models.Version
 
-			db.Where("song_id = ?", c.Param("song_id")).First(&version, c.Param("version_id"))
+			db.Where("song_id = ?", song_id).First(&version, c.Param("version_id"))
 
 			db.Delete(&version)
 			c.JSON(200, gin.H{
