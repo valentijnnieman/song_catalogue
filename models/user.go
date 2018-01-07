@@ -10,3 +10,10 @@ type User struct {
 	Password string
 	Songs    []Song `json:"songs" gorm:"ForeignKey:UserID"`
 }
+
+// Struct for binding JSON posts via Gin Gonic bindJSON method
+type NEWUSER struct {
+	EMAIL    string        `json:"email" binding: "required"`
+	PASSWORD string        `json: "password" binding: "required"`
+	SONGS    []Song        `json: "songs"`
+}

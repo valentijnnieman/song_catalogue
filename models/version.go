@@ -12,3 +12,12 @@ type Version struct {
 	Lyrics    string `json:"lyrics"`
 	SongID    int    `json:"song_id"`
 }
+
+// Struct for binding JSON posts via Gin Gonic bindJSON method
+type NEWVERSION struct {
+	TITLE     string `json:"title" binding:"required"`
+	RECORDING string `json:"recording" binding:"required"`
+	NOTES     string `json:"notes" binding:"required"`
+	LYRICS    string `json:"lyrics" binding:"required"`
+	SONG_ID   int    `json:"song_id" binding:"required"`
+}

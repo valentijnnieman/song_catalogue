@@ -6,7 +6,6 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"golang.org/x/crypto/bcrypt"
-	//"github.com/aws/aws-sdk-go/service/s3"
 	"os"
 	"time"
 
@@ -18,31 +17,6 @@ import (
 	_ "github.com/jinzhu/gorm/dialects/postgres"
 	"github.com/valentijnnieman/song_catalogue/api/models"
 )
-
-type NEWUSER struct {
-	EMAIL    string        `json:"email" binding: "required"`
-	PASSWORD string        `json: "password" binding: "required"`
-	SONGS    []models.Song `json: "songs"`
-}
-
-type PASSWORDRESET struct {
-	EMAIL       string `json: "email" binding: "required"`
-	PASSWORD    string `json: "password" binding: "required"`
-	NEWPASSWORD string `json: "newPassword" binding: "required"`
-}
-
-type NEWSONG struct {
-	TITLE    string           `json:"title" binding:"required"`
-	VERSIONS []models.Version `json:"versions"`
-}
-
-type NEWVERSION struct {
-	TITLE     string `json:"title" binding:"required"`
-	RECORDING string `json:"recording" binding:"required"`
-	NOTES     string `json:"notes" binding:"required"`
-	LYRICS    string `json:"lyrics" binding:"required"`
-	SONG_ID   int    `json:"song_id" binding:"required"`
-}
 
 func HashString(s string) string {
 	hs, error := bcrypt.GenerateFromPassword([]byte(s), 14)
@@ -65,16 +39,15 @@ func main() {
 
 	db.AutoMigrate(&models.User{}, &models.Song{}, &models.Version{})
 
-	// Create a demo account on server start
-	var user = models.User{}
-	db.FirstOrCreate(&user, models.User{Email: "demodemodemo", Password: HashString("demo123")})
+	// Create a demo/debug account on server start
+	// var user = models.User{}
+	// db.FirstOrCreate(&user, models.User{Email: "demodemodemo", Password: HashString("demo123")})
 
 	sess := session.Must(session.NewSessionWithOptions(session.Options{
 		Config:            aws.Config{Region: aws.String("us-east-2")},
 		SharedConfigState: session.SharedConfigEnable,
 	}))
 	uploader := s3manager.NewUploader(sess)
-	//downloader := s3manager.NewDownloader(sess)
 
 	r := gin.Default()
 	r.Use(cors.New(cors.Config{
@@ -125,7 +98,7 @@ func main() {
 	r.POST("/login", authMiddleware.LoginHandler)
 
 	r.POST("/register", func(c *gin.Context) {
-		var newUser NEWUSER
+		var newUser models.NEWUSER
 		c.BindJSON(&newUser)
 		fmt.Println(newUser)
 
@@ -151,12 +124,13 @@ func main() {
 		auth.GET("/refresh_token", authMiddleware.RefreshHandler)
 
 		auth.POST("/reset-password", func(c *gin.Context) {
-			var passwordReset PASSWORDRESET
-			c.BindJSON(&passwordReset)
+			email := c.PostForm("email")
+			oldPassword := c.PostForm("password")
+			newPassword := c.PostForm("newPassword")
 
 			claims := jwt.ExtractClaims(c)
 
-			if passwordReset.EMAIL != claims["id"] {
+			if email != claims["id"] {
 				fmt.Println("email doesn't match!")
 				c.JSON(401, gin.H{
 					"error": "Email or password is incorrect",
@@ -166,14 +140,14 @@ func main() {
 			var user models.User
 			db.Where("email = ?", claims["id"]).First(&user)
 
-			pwdError := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(passwordReset.PASSWORD))
+			pwdError := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(oldPassword))
 			if pwdError != nil {
 				fmt.Println("Passwords don't match!")
 				c.JSON(401, gin.H{
-					"error": "Password is incorrect",
+					"error": "Email or password is incorrect",
 				})
 			} else {
-				user.Password = HashString(passwordReset.NEWPASSWORD)
+				user.Password = HashString(newPassword)
 				db.Save(&user)
 				c.JSON(200, gin.H{
 					"error": "",
@@ -185,7 +159,6 @@ func main() {
 			claims := jwt.ExtractClaims(c)
 			var user models.User
 
-			fmt.Println("claims[id]: ", claims["id"])
 			db.Where("email = ?", claims["id"]).First(&user)
 			db.Model(&user).Related(&user.Songs, "Songs")
 			var getVersions []models.Song
@@ -199,12 +172,31 @@ func main() {
 			})
 		})
 
+		auth.GET("/songs/:song_id", func(c *gin.Context) {
+			claims := jwt.ExtractClaims(c)
+			var user models.User
+
+			db.Where("email = ? id = ?", claims["id"], c.Param("song_id")).First(&user)
+			db.Model(&user).Related(&user.Songs, "Songs")
+			var getVersions []models.Song
+			for _, song := range user.Songs {
+				db.Model(&song).Related(&song.Versions, "Versions")
+				getVersions = append(getVersions, song)
+			}
+			user.Songs = getVersions
+			c.JSON(200, gin.H{
+				"songs": user.Songs,
+			})
+		})
+
+		// TODO: auth.PATCH("/songs/:song_id")
+
 		auth.POST("/songs/create", func(c *gin.Context) {
 			claims := jwt.ExtractClaims(c)
 			var user models.User
 			db.Where("email = ?", claims["id"]).First(&user)
 
-			var new_song NEWSONG
+			var new_song models.NEWSONG
 			c.BindJSON(&new_song)
 
 			var song = models.Song{Title: new_song.TITLE, UserID: int(user.ID), Versions: new_song.VERSIONS}
@@ -229,8 +221,10 @@ func main() {
 			})
 		})
 
+		// TODO: GET versions && versions/:version_id (if/when needed)
+
 		auth.POST("/versions/create", func(c *gin.Context) {
-			var new_version NEWVERSION
+			var new_version models.NEWVERSION
 			c.BindJSON(&new_version)
 
 			fmt.Printf("%s \n", &new_version)
@@ -244,7 +238,7 @@ func main() {
 		})
 
 		auth.PATCH("/versions/:version_id/update", func(c *gin.Context) {
-			var new_version NEWVERSION
+			var new_version models.NEWVERSION
 			c.BindJSON(&new_version)
 
 			var current_version models.Version
@@ -256,6 +250,19 @@ func main() {
 			})
 		})
 
+		auth.DELETE("/versions/:version_id/delete", func(c *gin.Context) {
+			song_id := c.PostForm("song_id")
+			var version models.Version
+
+			db.Where("song_id = ?", song_id).First(&version, c.Param("version_id"))
+
+			db.Delete(&version)
+			c.JSON(200, gin.H{
+				"status": "ok",
+			})
+		})
+
+		// RPC style endpoint for easier file uploading
 		// Gin Gonic router complains if route has version_id as param, so we take it from post body
 		auth.POST("/versions/recording", func(c *gin.Context) {
 			version_id := c.PostForm("version_id")
@@ -288,18 +295,6 @@ func main() {
 				"version": version,
 			})
 		})
-
-		auth.DELETE("/versions/:version_id/delete", func(c *gin.Context) {
-			song_id := c.PostForm("song_id")
-			var version models.Version
-
-			db.Where("song_id = ?", song_id).First(&version, c.Param("version_id"))
-
-			db.Delete(&version)
-			c.JSON(200, gin.H{
-				"status": "ok",
-			})
-		})
 	}
-	r.Run() // listen and serve on 0.0.0.0:8080
+	r.Run()
 }
