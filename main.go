@@ -3,11 +3,12 @@ package main
 import (
 	"fmt"
 
+	"os"
+	"time"
+
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"golang.org/x/crypto/bcrypt"
-	"os"
-	"time"
 
 	"github.com/appleboy/gin-jwt"
 	"github.com/aws/aws-sdk-go/service/s3/s3manager"
@@ -82,7 +83,6 @@ func main() {
 		},
 		Unauthorized: func(c *gin.Context, code int, message string) {
 			c.JSON(code, gin.H{
-				"code":    code,
 				"message": message,
 			})
 		},
@@ -91,7 +91,7 @@ func main() {
 
 	r.GET("/health", func(c *gin.Context) {
 		c.JSON(200, gin.H{
-			"status": "ok",
+			"message": "ok",
 		})
 	})
 
@@ -100,19 +100,29 @@ func main() {
 	r.POST("/register", func(c *gin.Context) {
 		var newUser models.NEWUSER
 		c.BindJSON(&newUser)
-		fmt.Println(newUser)
 
-		var user = models.User{Email: newUser.EMAIL, Password: HashString(newUser.PASSWORD)}
-		db.Create(&user)
-		c.JSON(200, gin.H{
-			"success": true,
-		})
+		if len(newUser.EMAIL) < 6 || len(newUser.PASSWORD) < 6 {
+			c.JSON(401, gin.H{
+				"message": "Email or password invalid",
+			})
+		} else {
+			var user = models.User{Email: newUser.EMAIL, Password: HashString(newUser.PASSWORD)}
+			if err := db.Create(&user).Error; err != nil {
+				c.JSON(409, gin.H{
+					"message": err,
+				})
+			} else {
+				c.JSON(200, gin.H{
+					"message": "Successfully created new account",
+				})
+			}
+		}
 	})
 
 	auth := r.Group("/auth")
 	auth.Use(cors.New(cors.Config{
 		AllowAllOrigins:  true,
-		AllowMethods:     []string{"PUT", "PATCH", "OPTIONS", "GET", "POST", "DELETE"},
+		AllowMethods:     []string{"PUT", "PATCH", "GET", "POST", "DELETE"},
 		AllowHeaders:     []string{"Origin", "Authorization", "Content-Type"},
 		ExposeHeaders:    []string{"Content-Length"},
 		AllowCredentials: true,
@@ -133,26 +143,26 @@ func main() {
 			if email != claims["id"] {
 				fmt.Println("email doesn't match!")
 				c.JSON(401, gin.H{
-					"error": "Email or password is incorrect",
-				})
-			}
-
-			var user models.User
-			db.Where("email = ?", claims["id"]).First(&user)
-
-			pwdError := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(oldPassword))
-			if pwdError != nil {
-				fmt.Println("Passwords don't match!")
-				c.JSON(401, gin.H{
-					"error": "Email or password is incorrect",
+					"message": "Email or password is incorrect",
 				})
 			} else {
-				user.Password = HashString(newPassword)
-				db.Save(&user)
-				c.JSON(200, gin.H{
-					"error": "",
-				})
+				var user models.User
+				db.Where("email = ?", claims["id"]).First(&user)
+
+				pwdError := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(oldPassword))
+				if pwdError != nil {
+					c.JSON(401, gin.H{
+						"message": "Email or password is incorrect",
+					})
+				} else {
+					user.Password = HashString(newPassword)
+					db.Save(&user)
+					c.JSON(200, gin.H{
+						"message": "Successfully reset password!",
+					})
+				}
 			}
+
 		})
 
 		auth.GET("/songs", func(c *gin.Context) {
@@ -168,7 +178,8 @@ func main() {
 			}
 			user.Songs = getVersions
 			c.JSON(200, gin.H{
-				"songs": user.Songs,
+				"songs":   user.Songs,
+				"message": "Successfully got songs!",
 			})
 		})
 
@@ -185,7 +196,8 @@ func main() {
 			}
 			user.Songs = getVersions
 			c.JSON(200, gin.H{
-				"songs": user.Songs,
+				"songs":   user.Songs,
+				"message": "Successfully got songs!",
 			})
 		})
 
@@ -200,11 +212,16 @@ func main() {
 			c.BindJSON(&new_song)
 
 			var song = models.Song{Title: new_song.TITLE, UserID: int(user.ID), Versions: new_song.VERSIONS}
-			db.Create(&song)
-
-			c.JSON(200, gin.H{
-				"song": song,
-			})
+			if err := db.Create(&song).Error; err != nil {
+				c.JSON(409, gin.H{
+					"message": err,
+				})
+			} else {
+				c.JSON(200, gin.H{
+					"song":    song,
+					"message": "Successfully created new song!",
+				})
+			}
 		})
 		auth.DELETE("/songs/:song_id/delete", func(c *gin.Context) {
 			claims := jwt.ExtractClaims(c)
@@ -213,41 +230,54 @@ func main() {
 
 			var song models.Song
 
-			db.Where("user_id = ?", user.ID).First(&song, c.Param("song_id"))
-
-			db.Delete(&song)
-			c.JSON(200, gin.H{
-				"status": "ok",
-			})
+			if err := db.Where("user_id = ?", user.ID).First(&song, c.Param("song_id")).Error; err != nil {
+				c.JSON(409, gin.H{
+					"message": err,
+				})
+			} else {
+				db.Delete(&song)
+				c.JSON(200, gin.H{
+					"message": "Successfully deleted song!",
+				})
+			}
 		})
 
 		// TODO: GET versions && versions/:version_id (if/when needed)
 
 		auth.POST("/versions/create", func(c *gin.Context) {
-			var new_version models.NEWVERSION
-			c.BindJSON(&new_version)
+			var newVersion models.NEWVERSION
+			c.BindJSON(&newVersion)
 
-			fmt.Printf("%s \n", &new_version)
+			var version = models.Version{Title: newVersion.TITLE, Recording: newVersion.RECORDING, Notes: newVersion.NOTES, Lyrics: newVersion.LYRICS, SongID: newVersion.SONG_ID}
 
-			var version = models.Version{Title: new_version.TITLE, Recording: new_version.RECORDING, Notes: new_version.NOTES, Lyrics: new_version.LYRICS, SongID: new_version.SONG_ID}
-
-			db.Create(&version)
-			c.JSON(200, gin.H{
-				"version": version,
-			})
+			if err := db.Create(&version).Error; err != nil {
+				c.JSON(409, gin.H{
+					"message": err,
+				})
+			} else {
+				c.JSON(200, gin.H{
+					"version": version,
+					"message": "Successfully created new version!",
+				})
+			}
 		})
 
 		auth.PATCH("/versions/:version_id/update", func(c *gin.Context) {
-			var new_version models.NEWVERSION
-			c.BindJSON(&new_version)
+			var newVersion models.NEWVERSION
+			c.BindJSON(&newVersion)
 
 			var current_version models.Version
 			db.First(&current_version, c.Param("version_id"))
-			db.Model(&current_version).Updates(new_version)
-
-			c.JSON(200, gin.H{
-				"version": current_version,
-			})
+			if err := db.Model(&current_version).Updates(newVersion).Error; err != nil {
+				c.JSON(409, gin.H{
+					"message": err,
+				})
+			} else {
+				c.JSON(200, gin.H{
+					"version": current_version,
+					"message": "Successfully updated version!",
+				})
+			}
 		})
 
 		auth.DELETE("/versions/:version_id/delete", func(c *gin.Context) {
@@ -256,10 +286,15 @@ func main() {
 
 			db.Where("song_id = ?", song_id).First(&version, c.Param("version_id"))
 
-			db.Delete(&version)
-			c.JSON(200, gin.H{
-				"status": "ok",
-			})
+			if err := db.Delete(&version).Error; err != nil {
+				c.JSON(409, gin.H{
+					"message": err,
+				})
+			} else {
+				c.JSON(200, gin.H{
+					"message": "Successfully deleted version!",
+				})
+			}
 		})
 
 		// RPC style endpoint for easier file uploading
@@ -279,21 +314,24 @@ func main() {
 
 			if err != nil {
 				fmt.Errorf("%s", err)
+				c.JSON(500, gin.H{
+					"message": err,
+				})
+			} else {
+				songpath := "https://s3.us-east-2.amazonaws.com/song-catalogue-storage/" + new_filepath
+
+				var version models.Version
+				db.Where("song_id = ?", song_id).First(&version, version_id)
+
+				version.Recording = songpath
+
+				db.Save(&version)
+
+				c.JSON(200, gin.H{
+					"version": version,
+					"message": "Successfully uploaded new recording!",
+				})
 			}
-
-			songpath := "https://s3.us-east-2.amazonaws.com/song-catalogue-storage/" + new_filepath
-
-			var version models.Version
-			db.Where("song_id = ?", song_id).First(&version, version_id)
-
-			version.Recording = songpath
-
-			db.Save(&version)
-
-			fmt.Printf("Successfully uploaded! ")
-			c.JSON(200, gin.H{
-				"version": version,
-			})
 		})
 	}
 	r.Run()
