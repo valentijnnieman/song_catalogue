@@ -1,4 +1,4 @@
-package models
+package main
 
 import (
 	"github.com/jinzhu/gorm"
@@ -13,6 +13,6 @@ type Song struct {
 
 // Struct for binding JSON posts via Gin Gonic bindJSON method
 type NEWSONG struct {
-	TITLE    string           `json:"title" binding:"required"`
+	TITLE    string    `json:"title" binding:"required"`
 	VERSIONS []Version `json:"versions"`
 }

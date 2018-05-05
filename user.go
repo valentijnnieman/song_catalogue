@@ -1,4 +1,4 @@
-package models
+package main
 
 import (
 	"github.com/jinzhu/gorm"
@@ -13,7 +13,7 @@ type User struct {
 
 // Struct for binding JSON posts via Gin Gonic bindJSON method
 type NEWUSER struct {
-	EMAIL    string        `json:"email" binding: "required"`
-	PASSWORD string        `json: "password" binding: "required"`
-	SONGS    []Song        `json: "songs"`
+	EMAIL    string `json:"email" binding: "required"`
+	PASSWORD string `json: "password" binding: "required"`
+	SONGS    []Song `json: "songs"`
 }
